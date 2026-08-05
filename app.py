@@ -34,9 +34,28 @@ st.markdown("---")
 # --- Load Models Safely ---
 @st.cache_resource
 def load_saved_models():
+    # 1. Load your small tabular model locally from GitHub
     with open('models/rf_model.pkl', 'rb') as f:
         rf = pickle.load(f)
-    cnn = tf.keras.models.load_model('models/cnn_model.h5')
+        
+    # 2. Check if the heavy CNN file is already cached in cloud memory
+    local_cnn_path = 'models/cnn_model.h5'
+    
+    if not os.path.exists(local_cnn_path):
+        with st.spinner("📥 Downloading deep learning neural layers from secure cloud storage... Please wait."):
+            os.makedirs('models', exist_ok=True)
+            
+            # 🔥 REPLACE this string below with your true alphanumeric ID string from Google Drive copy link
+            file_id = '1DJ3-QnimlOkoJ3Afe0bdjlEeQZqNbDng' 
+            
+            # This link layout MUST be exactly like this so Google allows the data export download stream
+            download_url = f'https://google.com{file_id}'
+            
+            # Streams the heavy model file straight into the Streamlit Cloud container
+            urllib.request.urlretrieve(download_url, local_cnn_path)
+            
+    # 3. Load the CNN model only AFTER it is guaranteed to be downloaded and exist
+    cnn = tf.keras.models.load_model(local_cnn_path)
     return rf, cnn
 
 rf_model, cnn_model = load_saved_models()
