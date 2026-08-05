@@ -163,7 +163,7 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
         uploaded_file = st.file_uploader("Select Radiograph Scan (PNG/JPG)...", type=["jpg", "png", "jpeg"])
         if uploaded_file is not None:
             image = Image.open(uploaded_file)
-            st.image(image, caption='Loaded Patient Radiograph Structure', use_container_width=True)
+            st.image(image, caption='Loaded Patient Radiograph Structure', use_column_width=True)
             
     with ui_right:
         if uploaded_file is not None:
