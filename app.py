@@ -4,6 +4,8 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 import pickle
+import os                 # 🧠 FIX: Added this line
+import urllib.request     # 🧠 FIX: Added this line
 
 # --- Page Layout & Styling Configuration ---
 st.set_page_config(page_title="PulmoAI Suite", layout="wide", page_icon="🫁")
