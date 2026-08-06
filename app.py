@@ -4,16 +4,16 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 import pickle
-import os                 # 🧠 FIX: Added this line
-import urllib.request     # 🧠 FIX: Added this line
-
+import os
 
 # --- Page Layout & Styling Configuration ---
-st.set_page_config(page_title="PulmoAI Suite", layout="wide", page_icon="🫁")
+st.set_page_config(page_title="RespiSense AI Suite", layout="wide", page_icon="🫁")
 
-# Initialize Session State Variables to save Patient Logs without losing data on click
+# Initialize Session State Variables to save Patient Logs and Cross-Module Referrals
 if 'patient_records' not in st.session_state:
     st.session_state.patient_records = []
+if 'referred_patient' not in st.session_state:
+    st.session_state.referred_patient = None
 
 # Custom Professional UI Injection (Gives it a modern dark clinical aesthetic)
 st.markdown("""
@@ -31,17 +31,14 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🫁 Multi-Modal Respiratory Diagnostic Suite")
+st.title("🫁 RespiSense: Multi-Modal Respiratory Diagnostic Suite")
 st.markdown("---")
 
-# --- Load Models Safely ---
+# --- Load Models Natively from Local Directory Path ---
 @st.cache_resource
 def load_saved_models():
-    # 1. Load your small tabular model locally from GitHub
     with open('models/rf_model.pkl', 'rb') as f:
         rf = pickle.load(f)
-        
-     # 2. Load the deep learning CNN model locally 
     cnn = tf.keras.models.load_model('models/cnn_model.h5')
     return rf, cnn
 
@@ -52,7 +49,6 @@ st.sidebar.markdown("<h2 style='text-align: center; color: white;'>Clinical Cont
 app_mode = st.sidebar.radio("Navigation Menu:", ["🏥 Dashboard Overview", "📊 Tabular Risk Engine (Module 1)", "🩻 X-Ray Neural Diagnostics (Module 2)"])
 st.sidebar.markdown("---")
 
-# Metric Counters visible in sidebar tracking active logs
 st.sidebar.markdown("### 📊 Presentation Metrics")
 st.sidebar.metric(label="Total Patients Scanned", value=len(st.session_state.patient_records))
 st.sidebar.markdown("---")
@@ -63,7 +59,6 @@ if app_mode == "🏥 Dashboard Overview":
     st.header("📋 Clinical Intelligence Dashboard")
     st.write("An end-to-end framework linking chronic background history factors to active radiological imaging updates.")
     
-    # Big Professional Statistics Cards
     m1, m2, m3 = st.columns(3)
     with m1: st.metric(label="Module 1: Random Forest Accuracy", value="91.94%", delta="Medical Trimmed")
     with m2: st.metric(label="Module 2: CNN Validation Accuracy", value="89.10%", delta="8-Epoch Optimized")
@@ -97,57 +92,40 @@ elif app_mode == "📊 Tabular Risk Engine (Module 1)":
         wheezing = st.selectbox("Audible Wheezing Sounds (سانس سے سیٹی کی آواز)", ["No", "Yes"])
         chest_pain = st.selectbox("Chest Pain Incidents (سینے میں درد)", ["No", "Yes"])
 
-        # Mapping logic helper (Yes = 2, No = 1)
-        to_bin = lambda x: 2 if x == "Yes" else 1
+    to_bin = lambda x: 2 if x == "Yes" else 1
+    expected_features = rf_model.n_features_in_ if hasattr(rf_model, 'n_features_in_') else 15
 
-        # 1. Check exactly how many features your currently loaded model expects
-        expected_features = rf_model.n_features_in_ if hasattr(rf_model, 'n_features_in_') else 15
+    if expected_features == 7:
+        raw_features = [1 if gender == "Male" else 0, age, to_bin(smoking), to_bin(wheezing), to_bin(coughing), to_bin(sob), to_bin(chest_pain)]
+    else:
+        raw_features = [1 if gender == "Male" else 0, age, to_bin(smoking), 1, 1, 1, 1, 1, 1, to_bin(wheezing), 1, to_bin(coughing), to_bin(sob), 1, to_bin(chest_pain)]
 
-        if expected_features == 7:
-            # Match the exact 7 medical features layout
-            raw_features = [
-                1 if gender == "Male" else 0, # GENDER
-                age,                           # AGE
-                to_bin(smoking),               # SMOKING
-                to_bin(wheezing),              # WHEEZING
-                to_bin(coughing),              # COUGHING
-                to_bin(sob),                   # SHORTNESS OF BREATH
-                to_bin(chest_pain)             # CHEST PAIN
-            ]
-        else:
-            # Match the old 15 features layout by hiding non-medical parameters
-            raw_features = [
-                1 if gender == "Male" else 0, age, to_bin(smoking),
-                1, 1, 1, 1, 1, 1,             # Hidden survey variables default to No (1)
-                to_bin(wheezing), 1, to_bin(coughing), to_bin(sob), 1, to_bin(chest_pain)
-            ]
+    input_matrix = np.array(raw_features).reshape(1, -1)
 
-        # 2. Convert into the required 2D NumPy array structure
-        input_matrix = np.array(raw_features).reshape(1, -1)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("⚡ EXECUTE BIOMETRIC RISK EVALUATION"):
-            with st.spinner("Processing data through decision trees..."):
-                # Predict using the dynamically scaled matrix
-                prediction = rf_model.predict(input_matrix)
-
-
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("⚡ EXECUTE BIOMETRIC RISK EVALUATION"):
+        with st.spinner("Processing data through decision trees..."):
+            prediction = rf_model.predict(input_matrix)
             
-            # Smart threshold fallback rules for consistent live demo responses
             if prediction == 1 or (smoking == "Yes" and (coughing == "Yes" or chest_pain == "Yes")):
                 status_output = "High Risk / Critical Alert"
                 st.error("🚨 **CRITICAL WARNING**: Patient data matches clusters for chronic pulmonary risk. Immediate advancement to Module 2 (Radiology) is heavily advised.")
+                
+                # 🔥 LINKING STEP: Store the patient's data in global memory for Module 2 routing
+                st.session_state.referred_patient = {
+                    "name": patient_name,
+                    "age": age,
+                    "gender": gender
+                }
+                st.info(f"👉 **Data Routing System Active**: {patient_name}'s profile has been securely sent to Module 2. Switch tabs to run their X-ray scan.")
             else:
                 status_output = "Low Risk / Stable"
                 st.success("✅ **STABLE BENCHMARK**: Features remain inside standard safe thresholds. No chronic risk indicators detected.")
+                st.session_state.referred_patient = None # Reset referral memory if patient is safe
                 
-            # Log this record entry instantly into state tracking list
             st.session_state.patient_records.append({
-                "Patient Name": patient_name,
-                "Age": age,
-                "Gender": gender,
-                "Diagnostic Module": "Module 1 (Tabular)",
-                "System Conclusion Result": status_output
+                "Patient Name": patient_name, "Age": age, "Gender": gender,
+                "Diagnostic Module": "Module 1 (Tabular)", "System Conclusion Result": status_output
             })
             st.toast(f"Record added successfully for {patient_name}!")
 
@@ -156,8 +134,22 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
     st.header("🩻 Computer Vision Diagnostics (Chest X-Ray Convolution)")
     st.write("Drop or upload a digital posterior-anterior chest radiograph to evaluate for structural anomalies.")
     
-    patient_name_img = st.text_input("Patient Full Name (مریض کا نام)", "Guest Patient")
+    # 🔥 DATA RECOVERY BRIDGE: Auto-detect if a high-risk patient was routed here from Module 1
+    if st.session_state.referred_patient is not None:
+        ref = st.session_state.referred_patient
+        st.warning(f"⚠️ **Active Medical Referral**: Routing High-Risk Tabular Patient **[{ref['name']}, Age {ref['age']}, {ref['gender']}]** to Radiology Asset Analysis.")
+        # Pre-populate fields with zero manual re-typing required
+        patient_name_img = st.text_input("Patient Full Name (مریض کا نام)", ref['name'])
+        patient_age_img = st.text_input("Patient Age (عمر)", str(ref['age']))
+        patient_gender_img = st.text_input("Patient Gender (جنس)", ref['gender'])
+    else:
+        # Standard fallback if clinician accesses Module 2 independently
+        col_reg1, col_reg2, col_reg3 = st.columns(3)
+        with col_reg1: patient_name_img = st.text_input("Patient Full Name (مریض کا نام)", "Guest Patient")
+        with col_reg2: patient_age_img = st.text_input("Patient Age (عمر)", "X-Ray File Check")
+        with col_reg3: patient_gender_img = st.text_input("Patient Gender (جنس)", "Radiology")
     
+    st.markdown("---")
     ui_left, ui_right = st.columns(2)
     with ui_left:
         uploaded_file = st.file_uploader("Select Radiograph Scan (PNG/JPG)...", type=["jpg", "png", "jpeg"])
@@ -169,7 +161,6 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
         if uploaded_file is not None:
             st.markdown("#### Neural Analysis Controls")
             if st.button("🧠 INITIALIZE MATRIX CONVOLUTION DEEP SCAN"):
-                
                 img = image.resize((150, 150)).convert('RGB')
                 img_array = np.expand_dims(np.array(img), axis=0) / 255.0
                 
@@ -177,7 +168,6 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
                     raw_prediction = cnn_model.predict(img_array)
                     st.markdown("### 🎯 Computer Vision Inference:")
                     
-                    # Handled Folder Mapping Inverted Logic: < 0.5 is Clear/Normal, >= 0.5 is Pneumonia
                     if raw_prediction < 0.5:
                         true_confidence = (1 - float(raw_prediction)) * 100
                         st.progress(true_confidence / 100)
@@ -187,16 +177,3 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
                         true_confidence = float(raw_prediction) * 100
                         st.progress(true_confidence / 100)
                         st.error(f"🚨 **DIAGNOSIS: POSITIVE ACTIVE PNEUMONIA** (Confidence: {true_confidence:.2f}%)")
-                        status_output = f"Positive Pneumonia Infection ({true_confidence:.1f}%)"
-                        
-                    # Save results log into database tracker list
-                    st.session_state.patient_records.append({
-                        "Patient Name": patient_name_img,
-                        "Age": "X-Ray File Check",
-                        "Gender": "Radiology",
-                        "Diagnostic Module": "Module 2 (X-Ray CNN)",
-                        "System Conclusion Result": status_output
-                    })
-                    st.toast(f"X-ray record added for {patient_name_img}!")
-        else:
-            st.info("💡 **Awaiting Input**: Please drop a valid patient chest radiograph scan in the left panel to initialize the neural processing layers.")
