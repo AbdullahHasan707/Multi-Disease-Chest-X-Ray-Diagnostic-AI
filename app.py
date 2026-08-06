@@ -31,7 +31,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🫁 PulmoAI: Multi-Modal Respiratory Diagnostic Suite")
+st.title("🫁 Multi-Modal Respiratory Diagnostic Suite")
 st.markdown("---")
 
 # --- Load Models Safely ---
