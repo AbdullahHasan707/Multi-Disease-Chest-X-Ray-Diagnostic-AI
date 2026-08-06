@@ -200,4 +200,3 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
                     st.toast(f"X-ray record added for {patient_name_img}!")
         else:
             st.info("💡 **Awaiting Input**: Please drop a valid patient chest radiograph scan in the left panel to initialize the neural processing layers.")
-.
