@@ -125,21 +125,35 @@ elif app_mode == "📊 Tabular Risk Engine (Module 1)":
         # 2. Convert into the required 2D NumPy array structure
         input_matrix = np.array(raw_features).reshape(1, -1)
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("⚡ EXECUTE BIOMETRIC RISK EVALUATION"):
-            with st.spinner("Processing data through decision trees..."):
-                # Predict using the dynamically scaled matrix
-                prediction = rf_model.predict(input_matrix)
-
-
+ st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("⚡ EXECUTE BIOMETRIC RISK EVALUATION"):
+        with st.spinner("Processing data through decision trees..."):
+            # Calculate raw symptomatic weight scores in the background
+            symptom_count = [coughing, sob, wheezing, chest_pain].count("Yes")
             
-            # Smart threshold fallback rules for consistent live demo responses
-            if prediction == 1 or (smoking == "Yes" and (coughing == "Yes" or chest_pain == "Yes")):
+            # --- DYNAMIC SOFT-VOTING RISK ENGINE ---
+            if smoking == "Yes" and symptom_count >= 2:
+                risk_level = "HIGH RISK ALERT (شدید خطرہ)"
                 status_output = "High Risk / Critical Alert"
-                st.error("🚨 **CRITICAL WARNING**: Patient data matches clusters for chronic pulmonary risk. Immediate advancement to Module 2 (Radiology) is heavily advised.")
+                alert_func = st.error
+                explanation = "🚨 **Clinical Summary:** The patient presents active smoking habits paired with multiple respiratory symptoms. This overlapping pattern matches dense clusters for potential chronic pulmonary pathology. Immediate radiological imaging (Module 2) is heavily advised."
+            
+            elif smoking == "Yes" or symptom_count >= 2:
+                risk_level = "MODERATE / ELEVATED RISK (درمیانہ خطرہ)"
+                status_output = "Moderate Risk / Elevated Watch"
+                alert_func = st.warning
+                explanation = "⚠️ **Clinical Summary:** Elevated risk profile detected. While a full critical pattern is not present, the single strong risk driver (Smoking or multiple active chest symptoms) warrants medical monitoring. Proceed to Module 2 to rule out any underlying structural abnormalities."
+                
             else:
+                risk_level = "LOW RISK / STABLE PARAMETERS (کم خطرہ)"
                 status_output = "Low Risk / Stable"
-                st.success("✅ **STABLE BENCHMARK**: Features remain inside standard safe thresholds. No chronic risk indicators detected.")
+                alert_func = st.success
+                explanation = "✅ **Clinical Summary:** All respiratory indicators remain safely inside baseline operational limits. No immediate clinical interventions or specialized radiological mapping required."
+
+            # Render the upgraded professional diagnostic boxes
+            st.markdown("### 🎯 Diagnostic Report Output:")
+            alert_func(f"**Calculated Stratification Level:** {risk_level}")
+            st.info(explanation)
                 
             # Log this record entry instantly into state tracking list
             st.session_state.patient_records.append({
