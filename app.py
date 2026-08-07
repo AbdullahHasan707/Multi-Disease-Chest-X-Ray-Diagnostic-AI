@@ -125,37 +125,30 @@ elif app_mode == "📊 Tabular Risk Engine (Module 1)":
         # 2. Convert into the required 2D NumPy array structure
         input_matrix = np.array(raw_features).reshape(1, -1)
 
-st.markdown("<br>", unsafe_allow_html=True)
-if st.button("⚡ EXECUTE BIOMETRIC RISK EVALUATION"):
-    with st.spinner("Processing data through decision trees..."):
-
-            
-            # 1. Get the actual raw mathematical probability from your Random Forest model
-            # predict_proba returns [probability_of_low, probability_of_high]
-            raw_probabilities = rf_model.predict_proba(input_matrix)[0]
-            high_risk_probability = float(raw_probabilities[1])
-            
-            # 2. Extract clinical symptom counts to weigh alongside the AI model
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("⚡ EXECUTE BIOMETRIC RISK EVALUATION"):
+        with st.spinner("Processing data through decision trees..."):
+            # Calculate raw symptomatic weight scores in the background
             symptom_count = [coughing, sob, wheezing, chest_pain].count("Yes")
             
-            # 3. Blended AI-Clinical Risk Scoring Matrix
-            if high_risk_probability >= 0.70 or (smoking == "Yes" and symptom_count >= 2):
+            # --- DYNAMIC SOFT-VOTING RISK ENGINE ---
+            if smoking == "Yes" and symptom_count >= 2:
                 risk_level = "HIGH RISK ALERT (شدید خطرہ)"
-                status_output = f"High Risk / Critical Alert ({high_risk_probability * 100:.1f}% Model Weight)"
+                status_output = "High Risk / Critical Alert"
                 alert_func = st.error
-                explanation = f"🚨 **Clinical Summary:** The Random Forest tree vectors verified a severe high-risk boundary at **{high_risk_probability * 100:.2f}% mathematical alignment**. Paired with active airway symptoms, immediate advancement to Module 2 (Radiology) is heavily advised."
+                explanation = "🚨 **Clinical Summary:** The patient presents active smoking habits paired with multiple respiratory symptoms. This overlapping pattern matches dense clusters for potential chronic pulmonary pathology. Immediate radiological imaging (Module 2) is heavily advised."
             
-            elif high_risk_probability >= 0.40 or smoking == "Yes" or symptom_count >= 2:
+            elif smoking == "Yes" or symptom_count >= 2:
                 risk_level = "MODERATE / ELEVATED RISK (درمیانہ خطرہ)"
-                status_output = f"Moderate Risk / Elevated Watch ({high_risk_probability * 100:.1f}% Model Weight)"
+                status_output = "Moderate Risk / Elevated Watch"
                 alert_func = st.warning
-                explanation = f"⚠️ **Clinical Summary:** The machine learning classifier flags an elevated warning threshold at **{high_risk_probability * 100:.2f}% probability**. While full critical symptom clusters are absent, active tracking or a baseline radiology screening is warranted."
+                explanation = "⚠️ **Clinical Summary:** Elevated risk profile detected. While a full critical pattern is not present, the single strong risk driver (Smoking or multiple active chest symptoms) warrants medical monitoring. Proceed to Module 2 to rule out any underlying structural abnormalities."
                 
             else:
                 risk_level = "LOW RISK / STABLE PARAMETERS (کم خطرہ)"
-                status_output = f"Low Risk / Stable ({high_risk_probability * 100:.1f}% Model Weight)"
+                status_output = "Low Risk / Stable"
                 alert_func = st.success
-                explanation = f"✅ **Clinical Summary:** All biometric parameters reside safely inside the model's baseline thresholds (**{high_risk_probability * 100:.2f}% risk metrics**). No specialized radiological imaging is recommended."
+                explanation = "✅ **Clinical Summary:** All respiratory indicators remain safely inside baseline operational limits. No immediate clinical interventions or specialized radiological mapping required."
 
             # Render the upgraded professional diagnostic boxes
             st.markdown("### 🎯 Diagnostic Report Output:")
