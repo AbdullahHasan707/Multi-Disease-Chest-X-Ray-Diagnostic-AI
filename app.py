@@ -126,8 +126,9 @@ elif app_mode == "📊 Tabular Risk Engine (Module 1)":
         input_matrix = np.array(raw_features).reshape(1, -1)
 
 st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("⚡ EXECUTE BIOMETRIC RISK EVALUATION"):
-        with st.spinner("Processing data through decision trees..."):
+if st.button("⚡ EXECUTE BIOMETRIC RISK EVALUATION"):
+    with st.spinner("Processing data through decision trees..."):
+
             
             # 1. Get the actual raw mathematical probability from your Random Forest model
             # predict_proba returns [probability_of_low, probability_of_high]
