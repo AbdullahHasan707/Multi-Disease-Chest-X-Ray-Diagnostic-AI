@@ -66,7 +66,7 @@ if app_mode == "🏥 Dashboard Overview":
 
     m1, m2, m3 = st.columns(3)
     with m1: st.metric(label="Model Architecture", value="DenseNet121", delta="Transfer Learning")
-    with m2: st.metric(label="Training", value="8 Epochs", delta="4 Diagnostic Classes")
+    with m2: st.metric(label="Training", value="10 Epochs", delta="4 Diagnostic Classes")
     with m3: st.metric(label="Session Total Scanned Logs", value=f"{len(st.session_state.patient_records)} Patients")
 
     st.markdown("### 📋 Current Session Patient Registration Log")
