@@ -57,16 +57,17 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### 📊 Presentation Metrics")
 st.sidebar.metric(label="Total Patients Scanned", value=len(st.session_state.patient_records))
 st.sidebar.markdown("---")
-st.sidebar.info("🤖 **System Status**: Engine online.\n\n✨ **AI Model**: Multi-Class CNN (4-way classification).")
+st.sidebar.info("🤖 **System Status**: Engine online.\n\n✨ **AI Model**: DenseNet121 (Transfer Learning), 8 Epochs, 4-way classification.")
 
 # --- PAGE 1: OVERVIEW & ANALYTICS ---
 if app_mode == "🏥 Dashboard Overview":
     st.header("📋 Clinical Intelligence Dashboard")
     st.write("AI-assisted chest X-ray screening across four diagnostic classes: Normal, Pneumonia, COVID-19, and Tuberculosis.")
 
-    m1, m2 = st.columns(2)
-    with m1: st.metric(label="Model Type", value="Multi-Class CNN", delta="4 Diagnostic Classes")
-    with m2: st.metric(label="Session Total Scanned Logs", value=f"{len(st.session_state.patient_records)} Patients")
+    m1, m2, m3 = st.columns(3)
+    with m1: st.metric(label="Model Architecture", value="DenseNet121", delta="Transfer Learning")
+    with m2: st.metric(label="Training", value="8 Epochs", delta="4 Diagnostic Classes")
+    with m3: st.metric(label="Session Total Scanned Logs", value=f"{len(st.session_state.patient_records)} Patients")
 
     st.markdown("### 📋 Current Session Patient Registration Log")
     if len(st.session_state.patient_records) > 0:
