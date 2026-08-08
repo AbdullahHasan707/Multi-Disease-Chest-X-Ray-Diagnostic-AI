@@ -204,12 +204,12 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
                         status_output = f"Positive Pneumonia Infection ({true_confidence:.1f}%)"
                         
                     # Save results log into database tracker list
-                st.session_state.patient_records.append({
-                    "Patient Name": patient_name_img,
-                    "Age": st.session_state.current_patient_age if st.session_state.current_patient_age else "Not Recorded",
-                    "Gender": st.session_state.current_patient_gender if st.session_state.current_patient_gender else "Not Recorded",
-                    "Diagnostic Module": "Module 2 (X-Ray CNN)",
-                    "System Conclusion Result": status_output
+                    st.session_state.patient_records.append({
+                        "Patient Name": patient_name_img,
+                        "Age": st.session_state.current_patient_age if st.session_state.current_patient_age else "Not Recorded",
+                        "Gender": st.session_state.current_patient_gender if st.session_state.current_patient_gender else "Not Recorded",
+                        "Diagnostic Module": "Module 2 (X-Ray CNN)",
+                        "System Conclusion Result": status_output
                     })
                     st.toast(f"X-ray record added for {patient_name_img}!")
         else:
