@@ -49,7 +49,7 @@ rf_model, cnn_model = load_saved_models()
 
 # --- Sidebar UI Dashboard Menu ---
 st.sidebar.markdown("<h2 style='text-align: center; color: white;'>Clinical Control</h2>", unsafe_allow_html=True)
-app_mode = st.sidebar.radio("Navigation Menu:", ["🏥 Dashboard Overview", "📊 Tabular Risk Engine (Module 1)", "🩻 X-Ray Neural Diagnostics (Module 2)"])
+app_mode = st.sidebar.radio("Navigation Menu:", ["🏥 Dashboard Overview", "📊 Tabular Risk Engine (Module 1)", "🩻 X-Ray Neural Diagnostics (Module 2)", "🩻 X-Ray Neural Diagnostics (Module 3)"])
 st.sidebar.markdown("---")
 
 # Metric Counters visible in sidebar tracking active logs
