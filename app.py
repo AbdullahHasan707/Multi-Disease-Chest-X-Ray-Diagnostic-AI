@@ -4,8 +4,8 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 import pickle
-import os                 # 🧠 FIX: Added this line
-import urllib.request     # 🧠 FIX: Added this line
+import os
+import urllib.request
 
 
 # --- Page Layout & Styling Configuration ---
@@ -14,6 +14,14 @@ st.set_page_config(page_title="PulmoAI Suite", layout="wide", page_icon="🫁")
 # Initialize Session State Variables to save Patient Logs without losing data on click
 if 'patient_records' not in st.session_state:
     st.session_state.patient_records = []
+
+# Shared patient identity carried across modules (Module 1 -> Module 2 -> Module 3)
+if 'current_patient_name' not in st.session_state:
+    st.session_state.current_patient_name = "Guest Patient"
+if 'current_patient_age' not in st.session_state:
+    st.session_state.current_patient_age = None
+if 'current_patient_gender' not in st.session_state:
+    st.session_state.current_patient_gender = None
 
 # Custom Professional UI Injection (Gives it a modern dark clinical aesthetic)
 st.markdown("""
@@ -40,8 +48,8 @@ def load_saved_models():
     # 1. Load your small tabular model locally from GitHub
     with open('models/rf_model.pkl', 'rb') as f:
         rf = pickle.load(f)
-        
-     # 2. Load the deep learning CNN model locally 
+
+    # 2. Load the deep learning CNN model locally
     cnn = tf.keras.models.load_model('models/cnn_model.h5')
     return rf, cnn
 
@@ -62,13 +70,13 @@ st.sidebar.info("🤖 **System Status**: All engines online.\n\n✨ **AI Models*
 if app_mode == "🏥 Dashboard Overview":
     st.header("📋 Clinical Intelligence Dashboard")
     st.write("An end-to-end framework linking chronic background history factors to active radiological imaging updates.")
-    
+
     # Big Professional Statistics Cards
     m1, m2, m3 = st.columns(3)
     with m1: st.metric(label="Module 1: Random Forest Accuracy", value="91.94%", delta="Medical Trimmed")
     with m2: st.metric(label="Module 2: CNN Validation Accuracy", value="89.10%", delta="8-Epoch Optimized")
     with m3: st.metric(label="Session Total Scanned Logs", value=f"{len(st.session_state.patient_records)} Patients")
-    
+
     st.markdown("### 📋 Current Session Patient Registration Log")
     if len(st.session_state.patient_records) > 0:
         log_df = pd.DataFrame(st.session_state.patient_records)
@@ -80,15 +88,24 @@ if app_mode == "🏥 Dashboard Overview":
 elif app_mode == "📊 Tabular Risk Engine (Module 1)":
     st.header("📊 Tabular Risk Engine (Chronic Pulmonary Assessment)")
     st.write("Input primary clinical symptoms to measure statistical lung risk boundaries.")
-    
-    patient_name = st.text_input("Patient Full Name (مریض کا نام)", "Guest Patient")
-    
+
+    patient_name = st.text_input(
+        "Patient Full Name (مریض کا نام)",
+        value=st.session_state.current_patient_name,
+        key="module1_name"
+    )
+    st.session_state.current_patient_name = patient_name
+
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("#### 👤 Patient Profile")
         gender = st.selectbox("Patient Gender (جنس)", ["Male", "Female"])
         age = st.slider("Patient Age (عمر)", 15, 90, 50)
         smoking = st.selectbox("Active Smoking Habits (تمباکو نوشی)", ["No", "Yes"])
+
+        # Carry age/gender forward so Module 2 & 3 can reuse them in the log
+        st.session_state.current_patient_age = age
+        st.session_state.current_patient_gender = gender
 
     with col2:
         st.markdown("#### 🫁 Primary Pulmonary Symptoms")
@@ -109,7 +126,7 @@ elif app_mode == "📊 Tabular Risk Engine (Module 1)":
                 1 if gender == "Male" else 0, # GENDER
                 age,                           # AGE
                 to_bin(smoking),               # SMOKING
-                to_bin(wheezing),              # WHEEZING
+                to_bin(wheezing),               # WHEEZING
                 to_bin(coughing),              # COUGHING
                 to_bin(sob),                   # SHORTNESS OF BREATH
                 to_bin(chest_pain)             # CHEST PAIN
@@ -131,8 +148,6 @@ elif app_mode == "📊 Tabular Risk Engine (Module 1)":
                 # Predict using the dynamically scaled matrix
                 prediction = rf_model.predict(input_matrix)
 
-
-            
             # Smart threshold fallback rules for consistent live demo responses
             if prediction == 1 or (smoking == "Yes" and (coughing == "Yes" or chest_pain == "Yes")):
                 status_output = "High Risk / Critical Alert"
@@ -140,7 +155,7 @@ elif app_mode == "📊 Tabular Risk Engine (Module 1)":
             else:
                 status_output = "Low Risk / Stable"
                 st.success("✅ **STABLE BENCHMARK**: Features remain inside standard safe thresholds. No chronic risk indicators detected.")
-                
+
             # Log this record entry instantly into state tracking list
             st.session_state.patient_records.append({
                 "Patient Name": patient_name,
@@ -155,28 +170,33 @@ elif app_mode == "📊 Tabular Risk Engine (Module 1)":
 elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
     st.header("🩻 Computer Vision Diagnostics (Chest X-Ray Convolution)")
     st.write("Drop or upload a digital posterior-anterior chest radiograph to evaluate for structural anomalies.")
-    
-    patient_name_img = st.text_input("Patient Full Name (مریض کا نام)", "Guest Patient")
-    
+
+    patient_name_img = st.text_input(
+        "Patient Full Name (مریض کا نام)",
+        value=st.session_state.current_patient_name,
+        key="module2_name"
+    )
+    st.session_state.current_patient_name = patient_name_img
+
     ui_left, ui_right = st.columns(2)
     with ui_left:
         uploaded_file = st.file_uploader("Select Radiograph Scan (PNG/JPG)...", type=["jpg", "png", "jpeg"])
         if uploaded_file is not None:
             image = Image.open(uploaded_file)
             st.image(image, caption='Loaded Patient Radiograph Structure', use_column_width=True)
-            
+
     with ui_right:
         if uploaded_file is not None:
             st.markdown("#### Neural Analysis Controls")
             if st.button("🧠 INITIALIZE MATRIX CONVOLUTION DEEP SCAN"):
-                
+
                 img = image.resize((150, 150)).convert('RGB')
                 img_array = np.expand_dims(np.array(img), axis=0) / 255.0
-                
+
                 with st.spinner("Scanning matrix layers via CNN Convolution filters..."):
                     raw_prediction = cnn_model.predict(img_array)
                     st.markdown("### 🎯 Computer Vision Inference:")
-                    
+
                     # Handled Folder Mapping Inverted Logic: < 0.5 is Clear/Normal, >= 0.5 is Pneumonia
                     if raw_prediction < 0.5:
                         true_confidence = (1 - float(raw_prediction)) * 100
@@ -188,12 +208,12 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
                         st.progress(true_confidence / 100)
                         st.error(f"🚨 **DIAGNOSIS: POSITIVE ACTIVE PNEUMONIA** (Confidence: {true_confidence:.2f}%)")
                         status_output = f"Positive Pneumonia Infection ({true_confidence:.1f}%)"
-                        
-                    # Save results log into database tracker list
+
+                    # Save results log into database tracker list (runs for BOTH outcomes)
                     st.session_state.patient_records.append({
                         "Patient Name": patient_name_img,
-                        "Age": "X-Ray File Check",
-                        "Gender": "Radiology",
+                        "Age": st.session_state.current_patient_age if st.session_state.current_patient_age else "Not Recorded",
+                        "Gender": st.session_state.current_patient_gender if st.session_state.current_patient_gender else "Not Recorded",
                         "Diagnostic Module": "Module 2 (X-Ray CNN)",
                         "System Conclusion Result": status_output
                     })
@@ -206,69 +226,85 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 3)":
     st.header("🩻 Computer Vision Diagnostics (Multi-Disease Chest X-Ray)")
     st.write("Upload a chest X-ray to detect **Normal, Pneumonia, COVID-19, or Tuberculosis**.")
 
-    # Load the new multi-disease model
+    # Load the new multi-disease model — wrapped so a missing/broken file
+    # shows a friendly message instead of crashing the whole app.
     @st.cache_resource
     def load_multi_disease_model():
-        model = tf.keras.models.load_model("multi_disease_cnn_final.h5")
-        return model
+        model_path = "models/multi_disease_cnn_final.h5"
+        if not os.path.exists(model_path):
+            return None
+        try:
+            return tf.keras.models.load_model(model_path)
+        except Exception:
+            return None
 
     model = load_multi_disease_model()
 
-    # Class names (must match training order)
-    class_names = ['COVID', 'Normal', 'Pneumonia', 'Tuberculosis']   # Check your train_gen.class_indices order!
-
-    # Patient name
-    patient_name = st.text_input("Patient Full Name (مریض کا نام)", value="Guest Patient")
-
-    # File uploader
-    uploaded_file = st.file_uploader("Select Radiograph Scan (PNG/JPG)", type=["png", "jpg", "jpeg"])
-
-    if uploaded_file is not None:
-        # Display image
-        image = Image.open(uploaded_file).convert("RGB")
-        st.image(image, caption="Uploaded Chest X-Ray", use_container_width=True)
-
-        # Preprocess
-        img = image.resize((224, 224))
-        img_array = np.array(img) / 255.0
-        img_array = np.expand_dims(img_array, axis=0)
-
-        # Predict
-        with st.spinner("Analyzing X-Ray with Multi-Disease CNN..."):
-            preds = model.predict(img_array)[0]
-            pred_idx = np.argmax(preds)
-            confidence = preds[pred_idx] * 100
-            predicted_class = class_names[pred_idx]
-
-        # Show Result
-        st.markdown("---")
-        st.subheader("🔍 Diagnosis Result")
-
-        if predicted_class == "Normal":
-            st.success(f"**Prediction: {predicted_class}**")
-        else:
-            st.error(f"**Prediction: {predicted_class}**")
-
-        st.metric("Confidence", f"{confidence:.2f}%")
-
-        # Show all probabilities
-        st.markdown("#### Class Probabilities")
-        prob_df = pd.DataFrame({
-            "Disease": class_names,
-            "Probability (%)": [f"{p*100:.2f}%" for p in preds]
-        })
-        st.dataframe(prob_df, use_container_width=True, hide_index=True)
-
-        # Optional: Save to session log
-        if "patient_records" not in st.session_state:
-            st.session_state.patient_records = []
-
-        st.session_state.patient_records.append({
-            "Name": patient_name,
-            "Module": "X-Ray Multi-Disease",
-            "Result": predicted_class,
-            "Confidence": f"{confidence:.1f}%"
-        })
-
+    if model is None:
+        st.warning(
+            "⚠️ **Module 3 is not active yet.** The multi-disease model file "
+            "(`models/multi_disease_cnn_final.h5`) hasn't been added to this deployment, "
+            "or failed to load. Add the trained `.h5` file to the `models/` folder in the "
+            "GitHub repo and redeploy to enable this module."
+        )
     else:
-        st.info("Please upload a chest X-ray image to start diagnosis.")
+        # Class names (must match training order)
+        class_names = ['COVID', 'Normal', 'Pneumonia', 'Tuberculosis']   # Check your train_gen.class_indices order!
+
+        # Patient name
+        patient_name = st.text_input(
+            "Patient Full Name (مریض کا نام)",
+            value=st.session_state.current_patient_name,
+            key="module3_name"
+        )
+        st.session_state.current_patient_name = patient_name
+
+        # File uploader
+        uploaded_file = st.file_uploader("Select Radiograph Scan (PNG/JPG)", type=["png", "jpg", "jpeg"])
+
+        if uploaded_file is not None:
+            # Display image
+            image = Image.open(uploaded_file).convert("RGB")
+            st.image(image, caption="Uploaded Chest X-Ray", use_container_width=True)
+
+            # Preprocess
+            img = image.resize((224, 224))
+            img_array = np.array(img) / 255.0
+            img_array = np.expand_dims(img_array, axis=0)
+
+            # Predict
+            with st.spinner("Analyzing X-Ray with Multi-Disease CNN..."):
+                preds = model.predict(img_array)[0]
+                pred_idx = np.argmax(preds)
+                confidence = preds[pred_idx] * 100
+                predicted_class = class_names[pred_idx]
+
+            # Show Result
+            st.markdown("---")
+            st.subheader("🔍 Diagnosis Result")
+
+            if predicted_class == "Normal":
+                st.success(f"**Prediction: {predicted_class}**")
+            else:
+                st.error(f"**Prediction: {predicted_class}**")
+
+            st.metric("Confidence", f"{confidence:.2f}%")
+
+            # Show all probabilities
+            st.markdown("#### Class Probabilities")
+            prob_df = pd.DataFrame({
+                "Disease": class_names,
+                "Probability (%)": [f"{p*100:.2f}%" for p in preds]
+            })
+            st.dataframe(prob_df, use_container_width=True, hide_index=True)
+
+            # Save to session log
+            st.session_state.patient_records.append({
+                "Patient Name": patient_name,
+                "Age": st.session_state.current_patient_age if st.session_state.current_patient_age else "Not Recorded",
+                "Gender": st.session_state.current_patient_gender if st.session_state.current_patient_gender else "Not Recorded",
+                "Diagnostic Module": "Module 3 (Multi-Disease X-Ray)",
+                "System Conclusion Result": f"{predicted_class} ({confidence:.1f}%)"
+            })
+        else:
+            st.info("Please upload a chest X-ray image to start diagnosis.")
