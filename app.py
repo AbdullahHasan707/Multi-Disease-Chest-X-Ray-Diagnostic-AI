@@ -50,11 +50,11 @@ rf_model, cnn_model = load_saved_models()
 
     # --- Grad-CAM Helper Functions ---
 def get_last_conv_layer(model):
-     """Finds the last Conv2D layer automatically."""
-    for layer in reversed(model.layers):
-        if isinstance(layer, tf.keras.layers.Conv2D):
-            return layer.name
-    raise ValueError("No Conv2D layer found in model")
+         """Finds the last Conv2D layer automatically."""
+        for layer in reversed(model.layers):
+            if isinstance(layer, tf.keras.layers.Conv2D):
+                return layer.name
+        raise ValueError("No Conv2D layer found in model")
 
     def make_gradcam_heatmap(img_array, model, last_conv_layer_name):
         grad_model = tf.keras.models.Model(
