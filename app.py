@@ -265,7 +265,7 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 3)":
         if uploaded_file is not None:
             # Display image
             image = Image.open(uploaded_file).convert("RGB")
-            st.image(image, caption="Uploaded Chest X-Ray", use_container_width=True)
+            st.image(image, caption="Uploaded Chest X-Ray", use_column_width=True)
 
             # Preprocess
             img = image.resize((224, 224))
