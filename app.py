@@ -46,7 +46,7 @@ def load_saved_models():
     cnn = tf.keras.models.load_model('models/cnn_model.h5')
     return rf, cnn
 
-    rf_model, cnn_model = load_saved_models()
+rf_model, cnn_model = load_saved_models()
 
     # --- Grad-CAM Helper Functions ---
     def get_last_conv_layer(model):
