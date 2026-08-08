@@ -57,7 +57,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### 📊 Presentation Metrics")
 st.sidebar.metric(label="Total Patients Scanned", value=len(st.session_state.patient_records))
 st.sidebar.markdown("---")
-st.sidebar.info("🤖 **System Status**: Engine online.\n\n✨ **AI Model**: DenseNet121 (Transfer Learning), 8 Epochs, 4-way classification.")
+st.sidebar.info("🤖 **System Status**: Engine online.\n\n✨ **AI Model**: DenseNet121 (Transfer Learning), 10 Epochs, 4-way classification.")
 
 # --- PAGE 1: OVERVIEW & ANALYTICS ---
 if app_mode == "🏥 Dashboard Overview":
