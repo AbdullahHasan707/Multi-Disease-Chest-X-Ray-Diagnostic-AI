@@ -210,7 +210,6 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
                     "Gender": st.session_state.current_patient_gender if st.session_state.current_patient_gender else "Not Recorded",
                     "Diagnostic Module": "Module 2 (X-Ray CNN)",
                     "System Conclusion Result": status_output
-                })
                     })
                     st.toast(f"X-ray record added for {patient_name_img}!")
         else:
