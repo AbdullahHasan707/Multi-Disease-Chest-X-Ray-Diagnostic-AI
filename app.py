@@ -5,7 +5,8 @@ import tensorflow as tf
 from PIL import Image
 import pickle
 import os                 # 🧠 FIX: Added this line
-import urllib.request     # 🧠 FIX: Added this line
+import urllib.request
+import cv2
 
 
 # --- Page Layout & Styling Configuration ---
@@ -46,6 +47,42 @@ def load_saved_models():
     return rf, cnn
 
 rf_model, cnn_model = load_saved_models()
+
+    # --- Grad-CAM Helper Functions ---
+    def get_last_conv_layer(model):
+        """Finds the last Conv2D layer automatically."""
+        for layer in reversed(model.layers):
+            if isinstance(layer, tf.keras.layers.Conv2D):
+                return layer.name
+        raise ValueError("No Conv2D layer found in model")
+
+    def make_gradcam_heatmap(img_array, model, last_conv_layer_name):
+        grad_model = tf.keras.models.Model(
+            [model.inputs], [model.get_layer(last_conv_layer_name).output, model.output]
+        )
+        with tf.GradientTape() as tape:
+            conv_outputs, predictions = grad_model(img_array)
+            class_channel = predictions[:, 0]
+
+        grads = tape.gradient(class_channel, conv_outputs)
+        pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+
+        conv_outputs = conv_outputs[0]
+        heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
+        heatmap = tf.squeeze(heatmap)
+        heatmap = tf.maximum(heatmap, 0) / (tf.math.reduce_max(heatmap) + 1e-8)
+        return heatmap.numpy()
+
+    def overlay_gradcam(original_img, heatmap, alpha=0.4):
+        heatmap_resized = cv2.resize(heatmap, (original_img.shape[1], original_img.shape[0]))
+        heatmap_uint8 = np.uint8(255 * heatmap_resized)
+        heatmap_color = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+        heatmap_color = cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB)
+        overlayed = cv2.addWeighted(original_img.astype(np.uint8), 1 - alpha, heatmap_color, alpha, 0)
+        return overlayed
+
+    # --- Sidebar UI Dashboard Menu ---
+    st.sidebar.markdown("<h2 style='text-align: center; color: white;'>Clinical Control</h2>", unsafe_allow_html=True)
 
 # --- Sidebar UI Dashboard Menu ---
 st.sidebar.markdown("<h2 style='text-align: center; color: white;'>Clinical Control</h2>", unsafe_allow_html=True)
@@ -175,6 +212,10 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
                 
                 with st.spinner("Scanning matrix layers via CNN Convolution filters..."):
                     raw_prediction = cnn_model.predict(img_array)
+                    last_conv_layer_name = get_last_conv_layer(cnn_model)
+                    heatmap = make_gradcam_heatmap(img_array, cnn_model, last_conv_layer_name)
+                    original_np = np.array(img.resize((150, 150)).convert('RGB'))
+                    overlayed_img = overlay_gradcam(original_np, heatmap)
                     st.markdown("### 🎯 Computer Vision Inference:")
                     
                     # Handled Folder Mapping Inverted Logic: < 0.5 is Clear/Normal, >= 0.5 is Pneumonia
@@ -188,6 +229,7 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
                         st.progress(true_confidence / 100)
                         st.error(f"🚨 **DIAGNOSIS: POSITIVE ACTIVE PNEUMONIA** (Confidence: {true_confidence:.2f}%)")
                         status_output = f"Positive Pneumonia Infection ({true_confidence:.1f}%)"
+                        st.image(overlayed_img, caption="🔥 Model Attention (Grad-CAM)", use_column_width=True)
                         
                     # Save results log into database tracker list
                     st.session_state.patient_records.append({
