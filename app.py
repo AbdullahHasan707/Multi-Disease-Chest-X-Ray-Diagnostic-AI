@@ -200,3 +200,75 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 2)":
                     st.toast(f"X-ray record added for {patient_name_img}!")
         else:
             st.info("💡 **Awaiting Input**: Please drop a valid patient chest radiograph scan in the left panel to initialize the neural processing layers.")
+
+# ====================== MODULE 3: MULTI-DISEASE X-RAY ======================
+elif app_mode == "🩻 X-Ray Neural Diagnostics (Module 3)":
+    st.header("🩻 Computer Vision Diagnostics (Multi-Disease Chest X-Ray)")
+    st.write("Upload a chest X-ray to detect **Normal, Pneumonia, COVID-19, or Tuberculosis**.")
+
+    # Load the new multi-disease model
+    @st.cache_resource
+    def load_multi_disease_model():
+        model = tf.keras.models.load_model("multi_disease_cnn_final.h5")
+        return model
+
+    model = load_multi_disease_model()
+
+    # Class names (must match training order)
+    class_names = ['COVID', 'Normal', 'Pneumonia', 'Tuberculosis']   # Check your train_gen.class_indices order!
+
+    # Patient name
+    patient_name = st.text_input("Patient Full Name (مریض کا نام)", value="Guest Patient")
+
+    # File uploader
+    uploaded_file = st.file_uploader("Select Radiograph Scan (PNG/JPG)", type=["png", "jpg", "jpeg"])
+
+    if uploaded_file is not None:
+        # Display image
+        image = Image.open(uploaded_file).convert("RGB")
+        st.image(image, caption="Uploaded Chest X-Ray", use_container_width=True)
+
+        # Preprocess
+        img = image.resize((224, 224))
+        img_array = np.array(img) / 255.0
+        img_array = np.expand_dims(img_array, axis=0)
+
+        # Predict
+        with st.spinner("Analyzing X-Ray with Multi-Disease CNN..."):
+            preds = model.predict(img_array)[0]
+            pred_idx = np.argmax(preds)
+            confidence = preds[pred_idx] * 100
+            predicted_class = class_names[pred_idx]
+
+        # Show Result
+        st.markdown("---")
+        st.subheader("🔍 Diagnosis Result")
+
+        if predicted_class == "Normal":
+            st.success(f"**Prediction: {predicted_class}**")
+        else:
+            st.error(f"**Prediction: {predicted_class}**")
+
+        st.metric("Confidence", f"{confidence:.2f}%")
+
+        # Show all probabilities
+        st.markdown("#### Class Probabilities")
+        prob_df = pd.DataFrame({
+            "Disease": class_names,
+            "Probability (%)": [f"{p*100:.2f}%" for p in preds]
+        })
+        st.dataframe(prob_df, use_container_width=True, hide_index=True)
+
+        # Optional: Save to session log
+        if "patient_records" not in st.session_state:
+            st.session_state.patient_records = []
+
+        st.session_state.patient_records.append({
+            "Name": patient_name,
+            "Module": "X-Ray Multi-Disease",
+            "Result": predicted_class,
+            "Confidence": f"{confidence:.1f}%"
+        })
+
+    else:
+        st.info("Please upload a chest X-ray image to start diagnosis.")
