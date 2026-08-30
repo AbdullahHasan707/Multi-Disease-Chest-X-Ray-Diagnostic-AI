@@ -45,6 +45,19 @@ st.caption("AI-powered chest X-ray screening for COVID-19, Pneumonia, and Tuberc
 st.markdown("---")
 
 
+def show_image(img, caption=""):
+    """Compatible image display across Streamlit versions."""
+    if isinstance(img, Image.Image):
+        img = np.array(img.convert("RGB"))
+    try:
+        st.image(img, caption=caption, use_container_width=True)
+    except TypeError:
+        try:
+            st.image(img, caption=caption, use_column_width=True)
+        except TypeError:
+            st.image(img, caption=caption)
+
+
 @st.cache_resource
 def load_multi_disease_model():
     model_path = "models/multi_disease_cnn_final.h5"
@@ -60,14 +73,18 @@ model = load_multi_disease_model()
 CLASS_NAMES = ["COVID", "Normal", "Pneumonia", "Tuberculosis"]
 
 
-def make_gradcam_heatmap(model, img_array, pred_index, last_conv_layer_name=None):
-    """Pure TensorFlow Grad-CAM (no extra heavy deps)."""
-    # Find last conv layer if not provided
-    if last_conv_layer_name is None:
-        for layer in reversed(model.layers):
-            if len(layer.output_shape) == 4:
+def make_gradcam_heatmap(model, img_array, pred_index):
+    """Pure TensorFlow Grad-CAM."""
+    last_conv_layer_name = None
+    for layer in reversed(model.layers):
+        try:
+            shape = layer.output.shape
+            if len(shape) == 4:
                 last_conv_layer_name = layer.name
                 break
+        except Exception:
+            continue
+
     if last_conv_layer_name is None:
         return None
 
@@ -81,6 +98,9 @@ def make_gradcam_heatmap(model, img_array, pred_index, last_conv_layer_name=None
         loss = predictions[:, pred_index]
 
     grads = tape.gradient(loss, conv_outputs)
+    if grads is None:
+        return None
+
     pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
     conv_outputs = conv_outputs[0]
     heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
@@ -90,7 +110,6 @@ def make_gradcam_heatmap(model, img_array, pred_index, last_conv_layer_name=None
 
 
 def overlay_gradcam(original_pil, heatmap, alpha=0.45):
-    """Overlay heatmap on original image. Returns RGB numpy array."""
     img = np.array(original_pil.resize((224, 224)).convert("RGB"))
     heatmap_resized = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
     heatmap_uint8 = np.uint8(255 * heatmap_resized)
@@ -101,8 +120,13 @@ def overlay_gradcam(original_pil, heatmap, alpha=0.45):
 
 
 def get_qwen_explanation(disease, confidence, probs_dict):
-    """Call Alibaba Qwen via DashScope if API key is available."""
-    api_key = os.environ.get("DASHSCOPE_API_KEY") or st.secrets.get("DASHSCOPE_API_KEY", None)
+    api_key = os.environ.get("DASHSCOPE_API_KEY")
+    if not api_key:
+        try:
+            api_key = st.secrets["DASHSCOPE_API_KEY"]
+        except Exception:
+            api_key = None
+
     if not QWEN_AVAILABLE or not api_key:
         return None
 
@@ -118,7 +142,10 @@ Do not invent findings not supported by the prediction."""
     try:
         response = Generation.call(model="qwen-turbo", prompt=prompt)
         if response and getattr(response, "output", None):
-            return response.output.get("text") or str(response.output)
+            out = response.output
+            if isinstance(out, dict):
+                return out.get("text") or str(out)
+            return str(out)
         return str(response)
     except Exception as e:
         return f"Qwen explanation unavailable: {e}"
@@ -182,7 +209,7 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics":
             uploaded_file = st.file_uploader("Select Radiograph Scan (PNG/JPG)", type=["png", "jpg", "jpeg"])
             if uploaded_file is not None:
                 image = Image.open(uploaded_file).convert("RGB")
-                st.image(image, caption="Uploaded Chest X-Ray", use_container_width=True)
+                show_image(image, caption="Uploaded Chest X-Ray")
 
         with ui_right:
             if uploaded_file is not None:
@@ -212,7 +239,7 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics":
                             "Disease": CLASS_NAMES,
                             "Probability (%)": [round(float(p) * 100, 2) for p in preds]
                         }).set_index("Disease")
-                        st.bar_chart(prob_df, color="#38bdf8")
+                        st.bar_chart(prob_df)
 
                         # Grad-CAM
                         st.markdown("#### 🔥 Grad-CAM Explainability")
@@ -222,9 +249,9 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics":
                                 overlay = overlay_gradcam(image, heatmap)
                                 c1, c2 = st.columns(2)
                                 with c1:
-                                    st.image(image.resize((224, 224)), caption="Original X-Ray", use_container_width=True)
+                                    show_image(image.resize((224, 224)), caption="Original X-Ray")
                                 with c2:
-                                    st.image(overlay, caption="Grad-CAM (model attention)", use_container_width=True)
+                                    show_image(overlay, caption="Grad-CAM (model attention)")
                                 st.caption("Warmer colors = regions the model focused on for this prediction.")
                             else:
                                 st.info("Grad-CAM could not locate a convolutional layer.")
