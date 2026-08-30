@@ -3,28 +3,37 @@ import pandas as pd
 import numpy as np
 import tensorflow as tf
 from PIL import Image
-import pickle
 import os
-import urllib.request
+import cv2
 
+# Optional Qwen (Alibaba DashScope)
+try:
+    import dashscope
+    from dashscope import Generation
+    QWEN_AVAILABLE = True
+except ImportError:
+    QWEN_AVAILABLE = False
 
-# --- Page Layout & Styling Configuration ---
-st.set_page_config(page_title="Multi-Disease Chest X-Ray Diagnostic AI", layout="wide", page_icon="🫁")
+st.set_page_config(
+    page_title="Multi-Disease Chest X-Ray Diagnostic AI",
+    layout="wide",
+    page_icon="🫁"
+)
 
-# Initialize Session State Variables to save Patient Logs without losing data on click
-if 'patient_records' not in st.session_state:
+if "patient_records" not in st.session_state:
     st.session_state.patient_records = []
 
-# Custom Professional UI Injection (Gives it a modern dark clinical aesthetic)
 st.markdown("""
     <style>
         .main { background-color: #0f172a; color: #f8fafc; }
-        .stButton>button { 
-            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); 
+        .stButton>button {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
             color: white; border: none; font-weight: bold; border-radius: 8px; width: 100%; transition: 0.3s;
         }
-        .stButton>button:hover { background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%); transform: translateY(-2px); }
-        .reportview-container .main .block-container{ max-width: 1200px; }
+        .stButton>button:hover {
+            background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+            transform: translateY(-2px);
+        }
         h1, h2, h3 { color: #38bdf8 !important; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
         div[data-testid="stMetricValue"] { color: #38bdf8 !important; font-size: 28px !important; }
         .stAlert { border-radius: 12px !important; border: 1px solid rgba(56, 189, 248, 0.2); }
@@ -32,10 +41,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🫁 Multi-Disease Chest X-Ray Diagnostic AI")
-st.caption("AI-powered chest X-ray screening for COVID-19, Pneumonia, and Tuberculosis")
+st.caption("AI-powered chest X-ray screening for COVID-19, Pneumonia, and Tuberculosis · Grad-CAM + optional Qwen explanation")
 st.markdown("---")
 
-# --- Load the multi-disease model ---
+
 @st.cache_resource
 def load_multi_disease_model():
     model_path = "models/multi_disease_cnn_final.h5"
@@ -46,51 +55,119 @@ def load_multi_disease_model():
     except Exception:
         return None
 
-model = load_multi_disease_model()
 
-# --- Sidebar UI Dashboard Menu ---
+model = load_multi_disease_model()
+CLASS_NAMES = ["COVID", "Normal", "Pneumonia", "Tuberculosis"]
+
+
+def make_gradcam_heatmap(model, img_array, pred_index, last_conv_layer_name=None):
+    """Pure TensorFlow Grad-CAM (no extra heavy deps)."""
+    # Find last conv layer if not provided
+    if last_conv_layer_name is None:
+        for layer in reversed(model.layers):
+            if len(layer.output_shape) == 4:
+                last_conv_layer_name = layer.name
+                break
+    if last_conv_layer_name is None:
+        return None
+
+    grad_model = tf.keras.models.Model(
+        [model.inputs],
+        [model.get_layer(last_conv_layer_name).output, model.output]
+    )
+
+    with tf.GradientTape() as tape:
+        conv_outputs, predictions = grad_model(img_array)
+        loss = predictions[:, pred_index]
+
+    grads = tape.gradient(loss, conv_outputs)
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+    conv_outputs = conv_outputs[0]
+    heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
+    heatmap = tf.squeeze(heatmap)
+    heatmap = tf.maximum(heatmap, 0) / (tf.math.reduce_max(heatmap) + 1e-8)
+    return heatmap.numpy()
+
+
+def overlay_gradcam(original_pil, heatmap, alpha=0.45):
+    """Overlay heatmap on original image. Returns RGB numpy array."""
+    img = np.array(original_pil.resize((224, 224)).convert("RGB"))
+    heatmap_resized = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
+    heatmap_uint8 = np.uint8(255 * heatmap_resized)
+    heatmap_color = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
+    heatmap_color = cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB)
+    overlay = (alpha * heatmap_color + (1 - alpha) * img).astype(np.uint8)
+    return overlay
+
+
+def get_qwen_explanation(disease, confidence, probs_dict):
+    """Call Alibaba Qwen via DashScope if API key is available."""
+    api_key = os.environ.get("DASHSCOPE_API_KEY") or st.secrets.get("DASHSCOPE_API_KEY", None)
+    if not QWEN_AVAILABLE or not api_key:
+        return None
+
+    dashscope.api_key = api_key
+    prompt = f"""You are a careful medical AI assistant helping a clinician.
+A chest X-ray model predicted: {disease} with {confidence:.1f}% confidence.
+Class probabilities: {probs_dict}
+
+Write a short, clear, non-alarming explanation in 3-5 sentences for a doctor.
+Mention that this is AI assistance only and final diagnosis requires clinical correlation and expert review.
+Do not invent findings not supported by the prediction."""
+
+    try:
+        response = Generation.call(model="qwen-turbo", prompt=prompt)
+        if response and getattr(response, "output", None):
+            return response.output.get("text") or str(response.output)
+        return str(response)
+    except Exception as e:
+        return f"Qwen explanation unavailable: {e}"
+
+
+# Sidebar
 st.sidebar.markdown("<h2 style='text-align: center; color: white;'>Clinical Control</h2>", unsafe_allow_html=True)
 app_mode = st.sidebar.radio("Navigation Menu:", ["🏥 Dashboard Overview", "🩻 X-Ray Neural Diagnostics"])
 st.sidebar.markdown("---")
-
-# Metric Counters visible in sidebar tracking active logs
 st.sidebar.markdown("### 📊 Presentation Metrics")
 st.sidebar.metric(label="Total Patients Scanned", value=len(st.session_state.patient_records))
 st.sidebar.markdown("---")
-st.sidebar.info("🤖 **System Status**: Engine online.\n\n✨ **AI Model**: DenseNet121 (Transfer Learning), 10 Epochs, 4-way classification.")
+st.sidebar.info(
+    "🤖 **System Status**: Engine online.\n\n"
+    "✨ **AI Model**: DenseNet121 + Grad-CAM\n\n"
+    "📝 **Optional**: Qwen explanation (set DASHSCOPE_API_KEY)"
+)
 
-# --- PAGE 1: OVERVIEW & ANALYTICS ---
 if app_mode == "🏥 Dashboard Overview":
     st.header("📋 Clinical Intelligence Dashboard")
-    st.write("AI-assisted chest X-ray screening across four diagnostic classes: Normal, Pneumonia, COVID-19, and Tuberculosis.")
+    st.write(
+        "AI-assisted chest X-ray screening across four diagnostic classes: "
+        "Normal, Pneumonia, COVID-19, and Tuberculosis. "
+        "Includes Grad-CAM visual explainability and optional Qwen text explanation."
+    )
 
     m1, m2, m3 = st.columns(3)
-    with m1: st.metric(label="Model Architecture", value="DenseNet121", delta="Transfer Learning")
-    with m2: st.metric(label="Training", value="10 Epochs", delta="4 Diagnostic Classes")
-    with m3: st.metric(label="Session Total Scanned Logs", value=f"{len(st.session_state.patient_records)} Patients")
+    with m1:
+        st.metric(label="Model Architecture", value="DenseNet121", delta="Transfer Learning")
+    with m2:
+        st.metric(label="Explainability", value="Grad-CAM", delta="+ Qwen optional")
+    with m3:
+        st.metric(label="Session Total Scanned", value=f"{len(st.session_state.patient_records)} Patients")
 
     st.markdown("### 📋 Current Session Patient Registration Log")
     if len(st.session_state.patient_records) > 0:
-        log_df = pd.DataFrame(st.session_state.patient_records)
-        st.dataframe(log_df, use_container_width=True)
+        st.dataframe(pd.DataFrame(st.session_state.patient_records), use_container_width=True)
     else:
-        st.info("💡 **No Active Logs**: No patients have been scanned yet during this presentation segment. Run a scan to add data entries.")
+        st.info("💡 **No Active Logs**: No patients have been scanned yet. Run a scan to add entries.")
 
-# --- PAGE 2: X-RAY MULTI-DISEASE DIAGNOSTICS ---
 elif app_mode == "🩻 X-Ray Neural Diagnostics":
     st.header("🩻 Computer Vision Diagnostics (Multi-Disease Chest X-Ray)")
     st.write("Upload a chest X-ray to detect **Normal, Pneumonia, COVID-19, or Tuberculosis**.")
 
     if model is None:
         st.warning(
-            "⚠️ **Model not loaded.** The multi-disease model file "
-            "(`models/multi_disease_cnn_final.h5`) hasn't been added to this deployment, "
-            "or failed to load. Add the trained `.h5` file to the `models/` folder in the "
-            "GitHub repo and redeploy."
+            "⚠️ **Model not loaded.** Add `models/multi_disease_cnn_final.h5` to the repo and redeploy."
         )
     else:
-        class_names = ['COVID', 'Normal', 'Pneumonia', 'Tuberculosis']   # Check your train_gen.class_indices order!
-
         patient_name = st.text_input("Patient Full Name (مریض کا نام)", "Guest Patient")
 
         col1, col2 = st.columns(2)
@@ -105,25 +182,25 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics":
             uploaded_file = st.file_uploader("Select Radiograph Scan (PNG/JPG)", type=["png", "jpg", "jpeg"])
             if uploaded_file is not None:
                 image = Image.open(uploaded_file).convert("RGB")
-                st.image(image, caption="Uploaded Chest X-Ray", use_column_width=True)
+                st.image(image, caption="Uploaded Chest X-Ray", use_container_width=True)
 
         with ui_right:
             if uploaded_file is not None:
                 st.markdown("#### Neural Analysis Controls")
                 if st.button("🧬 RUN MULTI-DISEASE DEEP SCAN"):
-
                     img = image.resize((224, 224))
                     img_array = np.array(img) / 255.0
-                    img_array = np.expand_dims(img_array, axis=0)
+                    img_array = np.expand_dims(img_array, axis=0).astype(np.float32)
 
-                    with st.spinner("Analyzing X-Ray with Multi-Disease CNN..."):
-                        preds = model.predict(img_array)[0]
-                        pred_idx = np.argmax(preds)
-                        confidence = preds[pred_idx] * 100
-                        predicted_class = class_names[pred_idx]
+                    with st.spinner("Analyzing X-Ray · Grad-CAM · optional Qwen..."):
+                        preds = model.predict(img_array, verbose=0)[0]
+                        pred_idx = int(np.argmax(preds))
+                        confidence = float(preds[pred_idx] * 100)
+                        predicted_class = CLASS_NAMES[pred_idx]
+                        probs_dict = {CLASS_NAMES[i]: round(float(preds[i] * 100), 2) for i in range(len(CLASS_NAMES))}
 
                         st.markdown("### 🎯 Diagnosis Result")
-                        st.progress(float(confidence) / 100)
+                        st.progress(min(confidence / 100.0, 1.0))
 
                         if predicted_class == "Normal":
                             st.success(f"✅ **DIAGNOSIS: {predicted_class.upper()} LUNGS** (Confidence: {confidence:.2f}%)")
@@ -132,19 +209,46 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics":
 
                         st.markdown("#### 📊 Class Probability Breakdown")
                         prob_df = pd.DataFrame({
-                            "Disease": class_names,
+                            "Disease": CLASS_NAMES,
                             "Probability (%)": [round(float(p) * 100, 2) for p in preds]
                         }).set_index("Disease")
                         st.bar_chart(prob_df, color="#38bdf8")
 
-                        # Save to session log
+                        # Grad-CAM
+                        st.markdown("#### 🔥 Grad-CAM Explainability")
+                        try:
+                            heatmap = make_gradcam_heatmap(model, img_array, pred_idx)
+                            if heatmap is not None:
+                                overlay = overlay_gradcam(image, heatmap)
+                                c1, c2 = st.columns(2)
+                                with c1:
+                                    st.image(image.resize((224, 224)), caption="Original X-Ray", use_container_width=True)
+                                with c2:
+                                    st.image(overlay, caption="Grad-CAM (model attention)", use_container_width=True)
+                                st.caption("Warmer colors = regions the model focused on for this prediction.")
+                            else:
+                                st.info("Grad-CAM could not locate a convolutional layer.")
+                        except Exception as e:
+                            st.warning(f"Grad-CAM failed: {e}")
+
+                        # Qwen explanation
+                        st.markdown("#### 📝 AI Explanation (Qwen)")
+                        explanation = get_qwen_explanation(predicted_class, confidence, probs_dict)
+                        if explanation:
+                            st.info(explanation)
+                        else:
+                            st.caption(
+                                "Set environment variable or Streamlit secret `DASHSCOPE_API_KEY` "
+                                "to enable Alibaba Qwen explanations."
+                            )
+
                         st.session_state.patient_records.append({
                             "Patient Name": patient_name,
                             "Age": age,
                             "Gender": gender,
-                            "Diagnostic Module": "Multi-Disease X-Ray",
+                            "Diagnostic Module": "Multi-Disease X-Ray + Grad-CAM",
                             "System Conclusion Result": f"{predicted_class} ({confidence:.1f}%)"
                         })
                         st.toast(f"Record added for {patient_name}!")
             else:
-                st.info("💡 **Awaiting Input**: Please upload a chest X-ray in the left panel to run the multi-disease scan.")
+                st.info("💡 **Awaiting Input**: Upload a chest X-ray on the left to run the multi-disease scan.")
