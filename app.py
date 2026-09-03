@@ -103,18 +103,38 @@ def overlay_gradcam(original_pil, heatmap, alpha=0.45):
 def get_gemini_explanation(disease, confidence, probs_dict, api_key):
     if not GEMINI_AVAILABLE or not api_key:
         return None
-    try:
-        genai.configure(api_key=api_key.strip())
-        gmodel = genai.GenerativeModel("gemini-1.5-flash")
-        prompt = f"""You are a careful medical AI assistant helping a clinician.
+
+    prompt = f"""You are a careful medical AI assistant helping a clinician.
 A chest X-ray model predicted: {disease} with {confidence:.1f}% confidence.
 Class probabilities: {probs_dict}
 
 Write a short, clear, non-alarming explanation in 3-5 sentences for a doctor.
 Mention that this is AI assistance only and final diagnosis requires clinical correlation and expert review.
 Do not invent findings not supported by the prediction."""
-        response = gmodel.generate_content(prompt)
-        return response.text
+
+    # Try multiple model IDs (Google renames free models often)
+    model_candidates = [
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-flash-latest",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash",
+        "gemini-pro",
+    ]
+
+    last_error = None
+    try:
+        genai.configure(api_key=api_key.strip())
+        for model_name in model_candidates:
+            try:
+                gmodel = genai.GenerativeModel(model_name)
+                response = gmodel.generate_content(prompt)
+                if response and getattr(response, "text", None):
+                    return response.text
+            except Exception as e:
+                last_error = e
+                continue
+        return f"Gemini explanation unavailable: {last_error}"
     except Exception as e:
         return f"Gemini explanation unavailable: {e}"
 
@@ -123,7 +143,6 @@ st.sidebar.markdown("<h2 style='text-align: center; color: white;'>Clinical Cont
 app_mode = st.sidebar.radio("Navigation Menu:", ["🏥 Dashboard Overview", "🩻 X-Ray Neural Diagnostics"])
 st.sidebar.markdown("---")
 
-# === PASTE YOUR GEMINI KEY HERE (sidebar field) ===
 gemini_api_key = st.sidebar.text_input(
     "Gemini API Key (optional)",
     type="password",
