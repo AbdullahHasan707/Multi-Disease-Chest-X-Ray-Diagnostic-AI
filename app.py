@@ -49,7 +49,7 @@ def show_image(img, caption=""):
 
 @st.cache_resource
 def load_multi_disease_model():
-    model_path = "models/multi_disease_cnn_final.h5"
+    model_path = "model/multi_disease_cnn_final.h5"
     if not os.path.exists(model_path):
         return None
     try:
