@@ -6,12 +6,6 @@ from PIL import Image
 import os
 import cv2
 
-try:
-    import google.generativeai as genai
-    GEMINI_AVAILABLE = True
-except ImportError:
-    GEMINI_AVAILABLE = False
-
 st.set_page_config(
     page_title="Multi-Disease Chest X-Ray Diagnostic AI",
     layout="wide",
@@ -34,7 +28,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🫁 Multi-Disease Chest X-Ray Diagnostic AI")
-st.caption("AI-powered chest X-ray screening · Grad-CAM + optional Gemini explanation")
+st.caption("AI-powered chest X-ray screening · Grad-CAM explainability")
 st.markdown("---")
 
 
@@ -100,76 +94,28 @@ def overlay_gradcam(original_pil, heatmap, alpha=0.45):
     return overlay
 
 
-def get_gemini_explanation(disease, confidence, probs_dict, api_key):
-    if not GEMINI_AVAILABLE or not api_key:
-        return None
-
-    prompt = f"""You are a careful medical AI assistant helping a clinician.
-A chest X-ray model predicted: {disease} with {confidence:.1f}% confidence.
-Class probabilities: {probs_dict}
-
-Write a short, clear, non-alarming explanation in 3-5 sentences for a doctor.
-Mention that this is AI assistance only and final diagnosis requires clinical correlation and expert review.
-Do not invent findings not supported by the prediction."""
-
-    # Try multiple model IDs (Google renames free models often)
-    model_candidates = [
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-flash-latest",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-flash",
-        "gemini-pro",
-    ]
-
-    last_error = None
-    try:
-        genai.configure(api_key=api_key.strip())
-        for model_name in model_candidates:
-            try:
-                gmodel = genai.GenerativeModel(model_name)
-                response = gmodel.generate_content(prompt)
-                if response and getattr(response, "text", None):
-                    return response.text
-            except Exception as e:
-                last_error = e
-                continue
-        return f"Gemini explanation unavailable: {last_error}"
-    except Exception as e:
-        return f"Gemini explanation unavailable: {e}"
-
-
 st.sidebar.markdown("<h2 style='text-align: center; color: white;'>Clinical Control</h2>", unsafe_allow_html=True)
 app_mode = st.sidebar.radio("Navigation Menu:", ["🏥 Dashboard Overview", "🩻 X-Ray Neural Diagnostics"])
-st.sidebar.markdown("---")
-
-gemini_api_key = st.sidebar.text_input(
-    "Gemini API Key (optional)",
-    type="password",
-    help="Get free key from https://aistudio.google.com/apikey"
-)
-
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📊 Presentation Metrics")
 st.sidebar.metric(label="Total Patients Scanned", value=len(st.session_state.patient_records))
 st.sidebar.markdown("---")
 st.sidebar.info(
     "🤖 **System Status**: Engine online.\n\n"
-    "✨ **AI Model**: DenseNet121 + Grad-CAM\n\n"
-    "📝 **Optional**: Gemini explanation (paste key above)"
+    "✨ **AI Model**: DenseNet121 + Grad-CAM"
 )
 
 if app_mode == "🏥 Dashboard Overview":
     st.header("📋 Clinical Intelligence Dashboard")
     st.write(
         "AI-assisted chest X-ray screening: Normal, Pneumonia, COVID-19, Tuberculosis. "
-        "Includes Grad-CAM and optional Gemini explanation."
+        "Includes Grad-CAM visual explainability."
     )
     m1, m2, m3 = st.columns(3)
     with m1:
         st.metric(label="Model Architecture", value="DenseNet121", delta="Transfer Learning")
     with m2:
-        st.metric(label="Explainability", value="Grad-CAM", delta="+ Gemini optional")
+        st.metric(label="Explainability", value="Grad-CAM", delta="Visual attention")
     with m3:
         st.metric(label="Session Total Scanned", value=f"{len(st.session_state.patient_records)} Patients")
 
@@ -210,15 +156,11 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics":
                     img_array = np.array(img) / 255.0
                     img_array = np.expand_dims(img_array, axis=0).astype(np.float32)
 
-                    with st.spinner("Analyzing X-Ray · Grad-CAM · optional Gemini..."):
+                    with st.spinner("Analyzing X-Ray · Grad-CAM..."):
                         preds = model.predict(img_array, verbose=0)[0]
                         pred_idx = int(np.argmax(preds))
                         confidence = float(preds[pred_idx] * 100)
                         predicted_class = CLASS_NAMES[pred_idx]
-                        probs_dict = {
-                            CLASS_NAMES[i]: round(float(preds[i] * 100), 2)
-                            for i in range(len(CLASS_NAMES))
-                        }
 
                         st.markdown("### 🎯 Diagnosis Result")
                         st.progress(min(confidence / 100.0, 1.0))
@@ -256,17 +198,6 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics":
                                 st.info("Grad-CAM could not locate a convolutional layer.")
                         except Exception as e:
                             st.warning(f"Grad-CAM failed: {e}")
-
-                        st.markdown("#### 📝 AI Explanation (Gemini)")
-                        explanation = get_gemini_explanation(
-                            predicted_class, confidence, probs_dict, gemini_api_key
-                        )
-                        if explanation:
-                            st.info(explanation)
-                        else:
-                            st.caption(
-                                "Paste your free Gemini API key in the sidebar to enable text explanation."
-                            )
 
                         st.session_state.patient_records.append({
                             "Patient Name": patient_name,

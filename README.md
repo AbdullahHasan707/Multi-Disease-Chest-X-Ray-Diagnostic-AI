@@ -9,7 +9,7 @@ A deep learning computer vision system that analyzes chest X-ray images and clas
 
 Built with **DenseNet121** (Transfer Learning), **TensorFlow/Keras**, and deployed as an interactive **Streamlit** web application.
 
-Includes **Grad-CAM** visual explainability and optional **Google Gemini** text explanation.
+Includes **Grad-CAM** visual explainability.
 
 ---
 
@@ -21,7 +21,6 @@ This project uses a pretrained **DenseNet121** model fine-tuned on a multi-class
 - 4-class chest X-ray classification (Normal / Pneumonia / COVID-19 / TB)
 - Transfer Learning with DenseNet121
 - **Grad-CAM** heatmap for visual explainability
-- Optional **Google Gemini** text explanation (free API key)
 - Real-time inference via Streamlit
 - Confidence score + probability visualization
 - Patient session logging
@@ -40,7 +39,6 @@ This project uses a pretrained **DenseNet121** model fine-tuned on a multi-class
 | Test Loss                | 0.3366                          |
 | Framework                | TensorFlow / Keras              |
 | Explainability           | Grad-CAM                        |
-| Optional LLM             | Google Gemini (free API)        |
 | Deployment               | Streamlit Community Cloud       |
 
 ---
@@ -97,25 +95,16 @@ model/multi_disease_cnn_final.h5
 streamlit run app.py
 ```
 
-### 5. (Optional) Gemini explanation
-1. Get a free key: https://aistudio.google.com/apikey
-2. In the Streamlit **sidebar**, paste the key in **Gemini API Key (optional)**
-3. Run a scan to see text explanation
-
-The app works fully without the key (prediction + Grad-CAM only).
-
 ---
 
 ## App Flow
 
 1. Upload chest X-ray
-2. (Optional) Paste Gemini API key in sidebar
-3. Click **RUN MULTI-DISEASE DEEP SCAN**
-4. See:
+2. Click **RUN MULTI-DISEASE DEEP SCAN**
+3. See:
    - Predicted class + confidence
    - Class probability bar chart
-   - **Grad-CAM heatmap**
-   - **Gemini explanation** (if key is provided)
+   - **Grad-CAM heatmap** (model attention regions)
 
 ---
 

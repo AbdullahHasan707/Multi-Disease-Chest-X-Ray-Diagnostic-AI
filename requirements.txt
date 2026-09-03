@@ -7,4 +7,3 @@ pillow
 starlette==0.37.2
 opencv-python-headless
 matplotlib
-google-generativeai
