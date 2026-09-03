@@ -9,19 +9,19 @@ A deep learning computer vision system that analyzes chest X-ray images and clas
 
 Built with **DenseNet121** (Transfer Learning), **TensorFlow/Keras**, and deployed as an interactive **Streamlit** web application.
 
-**New:** Grad-CAM visual explainability + optional Alibaba **Qwen** natural-language explanation.
+Includes **Grad-CAM** visual explainability and optional LLM text explanation.
 
 ---
 
 ## Project Overview
 
-This project uses a pretrained **DenseNet121** model fine-tuned on a multi-class chest X-ray dataset from Kaggle. The system provides real-time diagnosis with confidence scores, class probability breakdowns, Grad-CAM heatmaps (where the model looked), and optional AI-generated clinical-style explanations via Alibaba Qwen.
+This project uses a pretrained **DenseNet121** model fine-tuned on a multi-class chest X-ray dataset from Kaggle. The system provides real-time diagnosis with confidence scores, class probability breakdowns, and Grad-CAM heatmaps (regions the model focused on).
 
 ### Key Features
 - 4-class chest X-ray classification (Normal / Pneumonia / COVID-19 / TB)
 - Transfer Learning with DenseNet121
 - **Grad-CAM** heatmap for visual explainability
-- Optional **Qwen** (Alibaba DashScope) text explanation
+- Optional LLM text explanation (API key based)
 - Real-time inference via Streamlit
 - Confidence score + probability visualization
 - Patient session logging
@@ -36,11 +36,25 @@ This project uses a pretrained **DenseNet121** model fine-tuned on a multi-class
 | Input Size               | 224 x 224                       |
 | Classes                  | Normal, Pneumonia, COVID-19, TB |
 | Training Epochs          | 10                              |
-| Peak Validation Accuracy | **92.19%**                      |
-| Final Test Accuracy      | **83.79%**                      |
+| Final Test Accuracy      | **86.12%**                      |
+| Test Loss                | 0.3366                          |
 | Framework                | TensorFlow / Keras              |
 | Explainability           | Grad-CAM                        |
-| Optional LLM             | Alibaba Qwen (DashScope)        |
+| Deployment               | Streamlit Community Cloud       |
+
+---
+
+## Test Set Performance
+
+| Class         | Precision | Recall | F1-score | Support |
+|---------------|-----------|--------|----------|---------|
+| COVID-19      | 0.97      | 0.79   | 0.87     | 106     |
+| Normal        | 0.89      | 0.74   | 0.81     | 234     |
+| Pneumonia     | 0.82      | 0.95   | 0.88     | 390     |
+| Tuberculosis  | 0.90      | 0.93   | 0.92     | 41      |
+| **Accuracy**  |           |        | **0.86** | 771     |
+| **Macro avg** | 0.90      | 0.85   | 0.87     | 771     |
+| **Weighted avg** | 0.87   | 0.86   | 0.86     | 771     |
 
 ---
 
@@ -72,23 +86,26 @@ pip install -r requirements.txt
 ```
 
 ### 3. Model file
-Ensure `models/multi_disease_cnn_final.h5` exists in the repo.
-
-### 4. (Optional) Qwen API key
-For AI text explanation, set your Alibaba DashScope API key:
-```bash
-export DASHSCOPE_API_KEY="your_key_here"
+Ensure the trained model exists at:
+```text
+model/multi_disease_cnn_final.h5
 ```
-Or add it in Streamlit secrets / environment variables.
 
-### 5. Run the app
+### 4. Run the app
 ```bash
 streamlit run app.py
 ```
 
+### 5. (Optional) LLM explanation key
+If you want text explanations, set an API key in the environment or Streamlit secrets:
+```bash
+export DASHSCOPE_API_KEY="your_key_here"
+```
+The app still works fully without this key (prediction + Grad-CAM).
+
 ---
 
-## Grad-CAM + Qwen Flow
+## App Flow
 
 1. Upload chest X-ray
 2. Click **RUN MULTI-DISEASE DEEP SCAN**
@@ -96,28 +113,17 @@ streamlit run app.py
    - Predicted class + confidence
    - Class probability bar chart
    - **Grad-CAM heatmap** (model attention regions)
-   - **Qwen explanation** (if API key is set)
+   - Optional text explanation (if API key is set)
 
 ---
 
-## Deploy on Alibaba Cloud (Hackathon)
+## Deployment
 
-### Quick path (ECS)
-1. Create Ubuntu ECS (2 vCPU / 4GB+ RAM)
-2. Install Python, pip, git
-3. Clone repo and install requirements
-4. Place model file under `models/`
-5. Run:
-```bash
-streamlit run app.py --server.port 8501 --server.address 0.0.0.0
-```
-6. Open security group port **8501**
-7. Access: `http://YOUR_PUBLIC_IP:8501`
+This project is deployed on **Streamlit Community Cloud**.
 
-### Qwen on Alibaba
-- Enable **DashScope / Model Studio**
-- Create API key for `qwen-turbo` or `qwen-plus`
-- Set `DASHSCOPE_API_KEY` on the server
+- Repository: public GitHub repo
+- Main file: `app.py`
+- Live demo link is listed above
 
 ---
 
