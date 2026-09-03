@@ -7,11 +7,10 @@ import os
 import cv2
 
 try:
-    import dashscope
-    from dashscope import Generation
-    QWEN_AVAILABLE = True
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
 except ImportError:
-    QWEN_AVAILABLE = False
+    GEMINI_AVAILABLE = False
 
 st.set_page_config(
     page_title="Multi-Disease Chest X-Ray Diagnostic AI",
@@ -35,15 +34,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🫁 Multi-Disease Chest X-Ray Diagnostic AI")
-st.caption("AI-powered chest X-ray screening · Grad-CAM + optional Qwen explanation")
+st.caption("AI-powered chest X-ray screening · Grad-CAM + optional Gemini explanation")
 st.markdown("---")
 
 
 def show_image(img, caption=""):
-    """Safe image display for all Streamlit versions."""
     if isinstance(img, Image.Image):
         img = np.array(img.convert("RGB"))
-    # Never pass use_container_width / use_column_width (causes TypeError on some Cloud versions)
     st.image(img, caption=caption)
 
 
@@ -103,37 +100,36 @@ def overlay_gradcam(original_pil, heatmap, alpha=0.45):
     return overlay
 
 
-def get_qwen_explanation(disease, confidence, probs_dict):
-    api_key = os.environ.get("DASHSCOPE_API_KEY")
-    if not api_key:
-        try:
-            api_key = st.secrets["DASHSCOPE_API_KEY"]
-        except Exception:
-            api_key = None
-    if not QWEN_AVAILABLE or not api_key:
+def get_gemini_explanation(disease, confidence, probs_dict, api_key):
+    if not GEMINI_AVAILABLE or not api_key:
         return None
-    dashscope.api_key = api_key
-    prompt = f"""You are a careful medical AI assistant helping a clinician.
+    try:
+        genai.configure(api_key=api_key.strip())
+        gmodel = genai.GenerativeModel("gemini-1.5-flash")
+        prompt = f"""You are a careful medical AI assistant helping a clinician.
 A chest X-ray model predicted: {disease} with {confidence:.1f}% confidence.
 Class probabilities: {probs_dict}
 
 Write a short, clear, non-alarming explanation in 3-5 sentences for a doctor.
 Mention that this is AI assistance only and final diagnosis requires clinical correlation and expert review.
 Do not invent findings not supported by the prediction."""
-    try:
-        response = Generation.call(model="qwen-turbo", prompt=prompt)
-        if response and getattr(response, "output", None):
-            out = response.output
-            if isinstance(out, dict):
-                return out.get("text") or str(out)
-            return str(out)
-        return str(response)
+        response = gmodel.generate_content(prompt)
+        return response.text
     except Exception as e:
-        return f"Qwen explanation unavailable: {e}"
+        return f"Gemini explanation unavailable: {e}"
 
 
 st.sidebar.markdown("<h2 style='text-align: center; color: white;'>Clinical Control</h2>", unsafe_allow_html=True)
 app_mode = st.sidebar.radio("Navigation Menu:", ["🏥 Dashboard Overview", "🩻 X-Ray Neural Diagnostics"])
+st.sidebar.markdown("---")
+
+# === PASTE YOUR GEMINI KEY HERE (sidebar field) ===
+gemini_api_key = st.sidebar.text_input(
+    "Gemini API Key (optional)",
+    type="password",
+    help="Get free key from https://aistudio.google.com/apikey"
+)
+
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📊 Presentation Metrics")
 st.sidebar.metric(label="Total Patients Scanned", value=len(st.session_state.patient_records))
@@ -141,20 +137,20 @@ st.sidebar.markdown("---")
 st.sidebar.info(
     "🤖 **System Status**: Engine online.\n\n"
     "✨ **AI Model**: DenseNet121 + Grad-CAM\n\n"
-    "📝 **Optional**: Qwen (set DASHSCOPE_API_KEY)"
+    "📝 **Optional**: Gemini explanation (paste key above)"
 )
 
 if app_mode == "🏥 Dashboard Overview":
     st.header("📋 Clinical Intelligence Dashboard")
     st.write(
         "AI-assisted chest X-ray screening: Normal, Pneumonia, COVID-19, Tuberculosis. "
-        "Includes Grad-CAM and optional Qwen explanation."
+        "Includes Grad-CAM and optional Gemini explanation."
     )
     m1, m2, m3 = st.columns(3)
     with m1:
         st.metric(label="Model Architecture", value="DenseNet121", delta="Transfer Learning")
     with m2:
-        st.metric(label="Explainability", value="Grad-CAM", delta="+ Qwen optional")
+        st.metric(label="Explainability", value="Grad-CAM", delta="+ Gemini optional")
     with m3:
         st.metric(label="Session Total Scanned", value=f"{len(st.session_state.patient_records)} Patients")
 
@@ -169,7 +165,7 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics":
     st.write("Upload a chest X-ray to detect **Normal, Pneumonia, COVID-19, or Tuberculosis**.")
 
     if model is None:
-        st.warning("⚠️ Model not loaded. Add `models/multi_disease_cnn_final.h5` and redeploy.")
+        st.warning("⚠️ Model not loaded. Add `model/multi_disease_cnn_final.h5` and redeploy.")
     else:
         patient_name = st.text_input("Patient Full Name (مریض کا نام)", "Guest Patient")
 
@@ -195,7 +191,7 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics":
                     img_array = np.array(img) / 255.0
                     img_array = np.expand_dims(img_array, axis=0).astype(np.float32)
 
-                    with st.spinner("Analyzing X-Ray · Grad-CAM · optional Qwen..."):
+                    with st.spinner("Analyzing X-Ray · Grad-CAM · optional Gemini..."):
                         preds = model.predict(img_array, verbose=0)[0]
                         pred_idx = int(np.argmax(preds))
                         confidence = float(preds[pred_idx] * 100)
@@ -242,13 +238,15 @@ elif app_mode == "🩻 X-Ray Neural Diagnostics":
                         except Exception as e:
                             st.warning(f"Grad-CAM failed: {e}")
 
-                        st.markdown("#### 📝 AI Explanation (Qwen)")
-                        explanation = get_qwen_explanation(predicted_class, confidence, probs_dict)
+                        st.markdown("#### 📝 AI Explanation (Gemini)")
+                        explanation = get_gemini_explanation(
+                            predicted_class, confidence, probs_dict, gemini_api_key
+                        )
                         if explanation:
                             st.info(explanation)
                         else:
                             st.caption(
-                                "Set Streamlit secret or env `DASHSCOPE_API_KEY` for Qwen explanations."
+                                "Paste your free Gemini API key in the sidebar to enable text explanation."
                             )
 
                         st.session_state.patient_records.append({
