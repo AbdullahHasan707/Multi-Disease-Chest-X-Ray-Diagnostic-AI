@@ -35,8 +35,8 @@ This project uses a pretrained **DenseNet121** model fine-tuned on a multi-class
 | Input Size               | 224 x 224                       |
 | Classes                  | Normal, Pneumonia, COVID-19, TB |
 | Training Epochs          | 10                              |
-| Final Test Accuracy      | **86.12%**                      |
-| Test Loss                | 0.3366                          |
+| Final Test Accuracy      | **83.79%**                      |
+| Test Loss                | 0.3801                          |
 | Framework                | TensorFlow / Keras              |
 | Explainability           | Grad-CAM                        |
 | Deployment               | Streamlit Community Cloud       |
@@ -47,13 +47,13 @@ This project uses a pretrained **DenseNet121** model fine-tuned on a multi-class
 
 | Class         | Precision | Recall | F1-score | Support |
 |---------------|-----------|--------|----------|---------|
-| COVID-19      | 0.97      | 0.79   | 0.87     | 106     |
-| Normal        | 0.89      | 0.74   | 0.81     | 234     |
-| Pneumonia     | 0.82      | 0.95   | 0.88     | 390     |
+| COVID-19      | 0.94      | 0.80   | 0.87     | 106     |
+| Normal        | 0.90      | 0.64   | 0.75     | 234     |
+| Pneumonia     | 0.79      | 0.96   | 0.86     | 390     |
 | Tuberculosis  | 0.90      | 0.93   | 0.92     | 41      |
-| **Accuracy**  |           |        | **0.86** | 771     |
-| **Macro avg** | 0.90      | 0.85   | 0.87     | 771     |
-| **Weighted avg** | 0.87   | 0.86   | 0.86     | 771     |
+| **Accuracy**  |           |        | **0.84** | 771     |
+| **Macro avg** | 0.89      | 0.83   | 0.85     | 771     |
+| **Weighted avg** | 0.85   | 0.84   | 0.83     | 771     |
 
 ---
 
